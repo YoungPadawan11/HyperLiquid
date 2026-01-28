@@ -443,7 +443,7 @@
         async function fetchHyperliquidData() {
             try {
                 // PRODUCTION API CALL - Uncomment when deploying:
-                /*
+                
                 const response = await fetch('https://api.hyperliquid.xyz/info', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -453,13 +453,13 @@
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 return data;
-                */
+            
                 
                 // DEMO MODE - Simulated realistic data
-                return generateSimulatedData();
+               
             } catch (error) {
                 console.error('Error fetching Hyperliquid data:', error);
-                return generateSimulatedData(); // Fallback to simulated data
+                
             }
         }
         
