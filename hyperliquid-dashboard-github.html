@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyperliquid HIP-3 Analysis Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            color: #e0e0e0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #00f2ff 0%, #b400ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .thesis-box {
+            background: rgba(180, 0, 255, 0.1);
+            border-left: 4px solid #b400ff;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .thesis-box h3 { color: #b400ff; margin-bottom: 8px; }
+        .status {
+            text-align: center;
+            padding: 10px;
+            background: rgba(0, 255, 136, 0.1);
+            color: #00ff88;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .metric-label { font-size: 0.9em; color: #888; margin-bottom: 8px; }
+        .metric-value { font-size: 2em; font-weight: bold; color: #00f2ff; }
+        .metric-value.positive { color: #00ff88; }
+        .metric-value.negative { color: #ff4444; }
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 30px;
+        }
+        .chart-title { font-size: 1.3em; margin-bottom: 15px; color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Hyperliquid HIP-3 Analysis Dashboard</h1>
+            <div style="color: #888; font-size: 1.1em;">Real-Time TradFi Volume vs Crypto & HYPE-BTC Correlation</div>
+        </div>
+        
+        <div class="thesis-box">
+            <h3>🎯 Trading Thesis</h3>
+            <p>The more volume routed through TradFi assets (HIP-3), the more HYPE deviates in correlation and returns from Bitcoin.</p>
+        </div>
+        
+        <div class="status" id="status">🟢 Live | Initializing...</div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">HIP-3 Volume Ratio</div>
+                <div class="metric-value" id="hip3Ratio">--</div>
+                <div style="font-size: 0.9em; color: #888; margin-top: 5px;">TradFi / Total Volume</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">HYPE-BTC Return Spread</div>
+                <div class="metric-value" id="returnSpread">--</div>
+                <div style="font-size: 0.9em; color: #888; margin-top: 5px;">HYPE Returns - BTC Returns</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">HIP-3 24h Volume</div>
+                <div class="metric-value" id="hip3Volume">--</div>
+                <div style="font-size: 0.9em; color: #888; margin-top: 5px;" id="totalVolume">Total: --</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Prices</div>
+                <div class="metric-value" style="font-size: 1.5em;" id="hypePrice">HYPE: --</div>
+                <div style="font-size: 0.9em; color: #888; margin-top: 5px;" id="btcPrice">BTC: --</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">📈 HIP-3 Volume Ratio vs HYPE-BTC Return Spread</div>
+            <canvas id="mainChart" style="height: 400px;"></canvas>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'https://api.hyperliquid.xyz/info';
+        let metricsHistory = [];
+        let chart = null;
+        
+        // Initialize chart
+        function initChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'HIP-3 Volume Ratio (%)',
+                            data: [],
+                            borderColor: '#b400ff',
+                            backgroundColor: 'rgba(180, 0, 255, 0.1)',
+                            yAxisID: 'y',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'HYPE-BTC Return Spread (%)',
+                            data: [],
+                            borderColor: '#00f2ff',
+                            backgroundColor: 'rgba(0, 242, 255, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'minute' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#888' }
+                        },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#b400ff' },
+                            title: { display: true, text: 'HIP-3 Ratio (%)', color: '#b400ff' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#00f2ff' },
+                            title: { display: true, text: 'Return Spread (%)', color: '#00f2ff' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#e0e0e0' } }
+                    }
+                }
+            });
+        }
+        
+        // Fetch all data
+        async function fetchAllData() {
+            try {
+                // Fetch spot data
+                const spotResponse = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'spotMetaAndAssetCtxs' })
+                });
+                const spotData = await spotResponse.json();
+                
+                // Fetch perp data
+                const perpResponse = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'metaAndAssetCtxs' })
+                });
+                const perpData = await perpResponse.json();
+                
+                // Fetch prices
+                const priceResponse = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'allMids' })
+                });
+                const prices = await priceResponse.json();
+                
+                return {
+                    spotUniverse: spotData[0].universe,
+                    spotContexts: spotData[1] || [],
+                    perpContexts: perpData[1] || [],
+                    prices: prices
+                };
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                return null;
+            }
+        }
+        
+        // Calculate metrics
+        function calculateMetrics(data) {
+            if (!data) return null;
+            
+            // Calculate HIP-3 volume
+            let hip3Volume = 0;
+            let otherSpotVolume = 0;
+            
+            data.spotUniverse.forEach((pair, i) => {
+                if (i < data.spotContexts.length) {
+                    const volume = parseFloat(data.spotContexts[i].dayNtlVlm || 0);
+                    if (pair.name.includes('@')) {
+                        hip3Volume += volume;
+                    } else {
+                        otherSpotVolume += volume;
+                    }
+                }
+            });
+            
+            // Calculate perp volume
+            let perpVolume = 0;
+            data.perpContexts.forEach(ctx => {
+                perpVolume += parseFloat(ctx.dayNtlVlm || 0);
+            });
+            
+            const totalVolume = hip3Volume + otherSpotVolume + perpVolume;
+            const hip3Ratio = totalVolume > 0 ? (hip3Volume / totalVolume) * 100 : 0;
+            
+            const hypePrice = parseFloat(data.prices.HYPE || 0);
+            const btcPrice = parseFloat(data.prices.BTC || 0);
+            
+            return {
+                hip3Volume,
+                totalVolume,
+                hip3Ratio,
+                hypePrice,
+                btcPrice,
+                timestamp: new Date()
+            };
+        }
+        
+        // Update dashboard
+        function updateDashboard(metrics) {
+            if (!metrics) return;
+            
+            // Update metrics
+            document.getElementById('hip3Ratio').textContent = metrics.hip3Ratio.toFixed(2) + '%';
+            document.getElementById('hip3Volume').textContent = '$' + (metrics.hip3Volume / 1e6).toFixed(1) + 'M';
+            document.getElementById('totalVolume').textContent = 'Total: $' + (metrics.totalVolume / 1e9).toFixed(2) + 'B';
+            document.getElementById('hypePrice').textContent = 'HYPE: $' + metrics.hypePrice.toFixed(2);
+            document.getElementById('btcPrice').textContent = 'BTC: $' + metrics.btcPrice.toFixed(0);
+            
+            // Calculate spread
+            let spread = 0;
+            let spreadClass = '';
+            if (metricsHistory.length >= 2) {
+                const prev = metricsHistory[metricsHistory.length - 2];
+                const hypeReturn = ((metrics.hypePrice - prev.hypePrice) / prev.hypePrice) * 100;
+                const btcReturn = ((metrics.btcPrice - prev.btcPrice) / prev.btcPrice) * 100;
+                spread = hypeReturn - btcReturn;
+                spreadClass = spread >= 0 ? 'positive' : 'negative';
+                
+                document.getElementById('returnSpread').textContent = (spread >= 0 ? '+' : '') + spread.toFixed(2) + '%';
+                document.getElementById('returnSpread').className = 'metric-value ' + spreadClass;
+            } else {
+                document.getElementById('returnSpread').textContent = '0.00%';
+            }
+            
+            // Update chart
+            const spreads = [];
+            for (let i = 0; i < metricsHistory.length; i++) {
+                if (i === 0) {
+                    spreads.push(0);
+                } else {
+                    const prev = metricsHistory[i - 1];
+                    const curr = metricsHistory[i];
+                    const hypeRet = ((curr.hypePrice - prev.hypePrice) / prev.hypePrice) * 100;
+                    const btcRet = ((curr.btcPrice - prev.btcPrice) / prev.btcPrice) * 100;
+                    spreads.push(hypeRet - btcRet);
+                }
+            }
+            
+            chart.data.labels = metricsHistory.map(m => m.timestamp);
+            chart.data.datasets[0].data = metricsHistory.map(m => m.hip3Ratio);
+            chart.data.datasets[1].data = spreads;
+            chart.update('none');
+            
+            // Update status
+            const now = new Date();
+            document.getElementById('status').textContent = 
+                '🟢 Live | Last update: ' + now.toLocaleTimeString();
+        }
+        
+        // Main update loop
+        async function update() {
+            console.log('Fetching data...');
+            const data = await fetchAllData();
+            const metrics = calculateMetrics(data);
+            
+            if (metrics) {
+                metricsHistory.push(metrics);
+                
+                // Keep last 500 points
+                if (metricsHistory.length > 500) {
+                    metricsHistory = metricsHistory.slice(-500);
+                }
+                
+                updateDashboard(metrics);
+                console.log('Updated:', {
+                    hip3Ratio: metrics.hip3Ratio.toFixed(2) + '%',
+                    hype: '$' + metrics.hypePrice.toFixed(2),
+                    btc: '$' + metrics.btcPrice.toFixed(0)
+                });
+            }
+        }
+        
+        // Initialize
+        initChart();
+        update();
+        
+        // Update every 30 seconds
+        setInterval(update, 30000);
+    </script>
+</body>
+</html>
