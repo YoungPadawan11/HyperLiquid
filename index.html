@@ -439,25 +439,24 @@
             });
         }
         
-       / Fetch Hyperliquid data
-async function fetchHyperliquidData() {
-    try {
-        // PRODUCTION API CALL
-        const response = await fetch('https://api.hyperliquid.xyz/info', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'metaAndAssetCtxs' })
-        });
-        
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        return data;
-        
-    } catch (error) {
-        console.error('Error fetching Hyperliquid data:', error);
-        return generateSimulatedData(); // Fallback if API fails
-    }
-}
+     // Fetch Hyperliquid data
+        async function fetchHyperliquidData() {
+            try {
+                // PRODUCTION API CALL
+                const response = await fetch('https://api.hyperliquid.xyz/info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'metaAndAssetCtxs' })
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                return data;
+                
+            } catch (error) {
+                console.error('Error fetching Hyperliquid data:', error);
+                return generateSimulatedData(); // Fallback if API fails
+            }
         }
         
         // Generate simulated data for demo
